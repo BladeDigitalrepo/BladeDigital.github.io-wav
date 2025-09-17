@@ -1,4 +1,5 @@
 # BladeDigital.github.io-wav
+*PROTOTYPE***
 Hex escapes the grid but is intercepted by the Watcher Al fleet
 WAV (Watcher Al Vertical)
 
