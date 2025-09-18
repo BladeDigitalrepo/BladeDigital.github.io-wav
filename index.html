@@ -2,43 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>WAV_V1 — Watcher AI Vertical</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WAV_V1.5 — Watcher AI Vertical</title>
 <style>
-  :root { color-scheme: dark; }
   html,body { margin:0; background:#05070c; overflow:hidden; font-family:monospace; }
   canvas { display:block; margin:auto; background:#05070c; touch-action:none; }
-  #controls { position:fixed; left:50%; transform:translateX(-50%); top:820px; display:flex; gap:10px }
-  .btn { border:2px solid #25f3ff; color:#25f3ff; background:transparent; border-radius:12px; padding:8px 14px; box-shadow:0 0 12px #25f3ff80; font-family:inherit }
-  #start { position:fixed; inset:0; display:grid; place-items:center; background:#000a; backdrop-filter: blur(2px); }
+  #start { position:fixed; inset:0; display:grid; place-items:center; background:#000a; }
   #start .card { text-align:center; color:#bffcff }
   #start h1 { margin:0 0 8px; color:#ff59d1; text-shadow:0 0 16px #ff59d1, 0 0 8px #25f3ff; }
-  #start button { margin-top:16px }
+  #start button { margin-top:16px; border:2px solid #25f3ff; color:#25f3ff; background:transparent; padding:8px 16px; font-family:inherit; border-radius:10px; }
 </style>
 </head>
 <body>
   <canvas id="c" width="800" height="600"></canvas>
 
-  <!-- simple mobile buttons (optional) -->
-  <div id="controls">
-    <button class="btn" id="left">⬅︎</button>
-    <button class="btn" id="fire">⚡ Fire</button>
-    <button class="btn" id="right">➡︎</button>
-    <button class="btn" id="pause">⏸</button>
-  </div>
-
   <!-- Start overlay -->
   <div id="start">
     <div class="card">
-      <h1>WAV_V1</h1>
+      <h1>WAV_V1.5</h1>
       <div>Watcher_Ai_Vertical — Blade Digital</div>
       <pre style="color:#25f3ff">
         .-^-.   Neon Space Cruiser
        /_=_=\   (you)
-       \-_-_/   ⟰ fly up, blast through
+       \-_-_/   ⟰ free flight mode
       </pre>
-      <div>Move: ← → or A D • Fire: Space/Enter • Pause: P</div>
-      <button class="btn" id="startBtn">▶ Start</button>
+      <div>Controls: ← → ↑ ↓ move • Space/Enter fire • P pause</div>
+      <button id="startBtn">▶ Start</button>
     </div>
   </div>
 
@@ -53,16 +41,16 @@ const W = canvas.width, H = canvas.height;
 // Background grid
 const grid = { y: 0, speed: 2 };
 
-// Player (neon space cruiser)
+// Player ship
 const ship = {
   x: W/2, y: H*0.8, w: 26, h: 28,
-  vx: 0, ax: 0, maxV: 6, accel: 0.9, friction: 0.88,
+  vx: 0, vy: 0, ax: 0, ay: 0,
+  maxV: 6, accel: 0.9, friction: 0.88,
 };
 
 // Bullets
 const shots = [];
 function fire() {
-  // cooldown lite
   const now = performance.now();
   if (fire.last && now - fire.last < 140) return;
   fire.last = now;
@@ -78,11 +66,10 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
-document.getElementById('left').onclick  = () => { ship.ax = -ship.accel; setTimeout(()=>ship.ax=0, 90); };
-document.getElementById('right').onclick = () => { ship.ax =  ship.accel; setTimeout(()=>ship.ax=0, 90); };
-document.getElementById('fire').onclick  = fire;
-document.getElementById('pause').onclick = () => togglePause();
-document.getElementById('startBtn').onclick = () => { document.getElementById('start').style.display='none'; startGame(); };
+document.getElementById('startBtn').onclick = () => { 
+  document.getElementById('start').style.display='none'; 
+  startGame(); 
+};
 
 function togglePause(){
   if (!running) return;
@@ -92,20 +79,31 @@ function togglePause(){
 
 // ---------- Update ----------
 function update(){
-  // Input -> acceleration
-  ship.ax = 0;
-  if (keys['arrowleft'] || keys['a']) ship.ax -= ship.accel;
-  if (keys['arrowright']|| keys['d']) ship.ax += ship.accel;
+  ship.ax = 0; ship.ay = 0;
 
-  // Integrate velocity with friction
+  // Horizontal control
+  if (keys['arrowleft'])  ship.ax -= ship.accel;
+  if (keys['arrowright']) ship.ax += ship.accel;
+
+  // Vertical control
+  if (keys['arrowup'])    ship.ay -= ship.accel;
+  if (keys['arrowdown'])  ship.ay += ship.accel;
+
+  // Horizontal physics
   ship.vx += ship.ax;
   ship.vx *= ship.friction;
   ship.vx = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vx));
-  ship.x += ship.vx;
+  ship.x  += ship.vx;
 
-  // Clamp to screen
-  const pad = 20;
-  ship.x = Math.max(pad, Math.min(W - pad, ship.x));
+  // Vertical physics
+  ship.vy += ship.ay;
+  ship.vy *= ship.friction;
+  ship.vy = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vy));
+  ship.y  += ship.vy;
+
+  // Clamp to edges (ship stays fully visible)
+  ship.x = Math.max(ship.w/2, Math.min(W - ship.w/2, ship.x));
+  ship.y = Math.max(ship.h/2, Math.min(H - ship.h/2, ship.y));
 
   // Shots
   for (let i = shots.length-1; i >= 0; i--) {
@@ -114,11 +112,10 @@ function update(){
     if (s.y < -20) shots.splice(i,1);
   }
 
-  // Grid scroll
+  // Background scroll
   grid.y += grid.speed;
   if (grid.y >= 40) grid.y = 0;
 
-  // Score ticks up
   score += 0.1;
 }
 
@@ -137,27 +134,15 @@ function drawGrid(){
   ctx.globalAlpha = 0.55;
   ctx.strokeStyle = '#12243a';
   ctx.lineWidth = 2;
-
-  // vertical lanes
   for (let x = 0; x <= W; x += 40) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
   }
-  // horizontal glowing lines scrolling down
-  ctx.strokeStyle = '#1be1ff';
-  ctx.shadowBlur = 12;
-  ctx.shadowColor = '#1be1ff';
+  ctx.strokeStyle = '#1be1ff'; ctx.shadowBlur = 12; ctx.shadowColor = '#1be1ff';
   for (let y = grid.y; y < H; y += 40) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
   ctx.restore();
 
-  // faint Blade flame glyph behind
   ctx.save();
   ctx.globalAlpha = 0.12;
   ctx.font = '120px monospace';
@@ -170,20 +155,13 @@ function drawGrid(){
 }
 
 function drawShip(){
-  // central body (cyan)
   glowRect(ship.x-6, ship.y-14, 12, 28, '#25f3ff', 18);
-  // wings (magenta)
   glowRect(ship.x-18, ship.y-4, 12, 6, '#ff59d1', 12);
   glowRect(ship.x+6,  ship.y-4, 12, 6, '#ff59d1', 12);
-  // cockpit (orange)
   glowRect(ship.x-3, ship.y-10, 6, 10, '#ffa133', 8);
-  // exhaust sparks
-  ctx.save();
-  ctx.fillStyle = '#ffa133'; ctx.shadowBlur=14; ctx.shadowColor='#ffa133';
-  ctx.fillRect(ship.x-2, ship.y+16, 4, 8);
-  ctx.globalAlpha = 0.7;
-  ctx.fillRect(ship.x-1, ship.y+24, 2, 6);
-  ctx.restore();
+  ctx.save(); ctx.fillStyle = '#ffa133'; ctx.shadowBlur=14; ctx.shadowColor='#ffa133';
+  ctx.fillRect(ship.x-2, ship.y+16, 4, 8); ctx.globalAlpha = 0.7;
+  ctx.fillRect(ship.x-1, ship.y+24, 2, 6); ctx.restore();
 }
 
 function drawShots(){
@@ -191,9 +169,7 @@ function drawShots(){
   ctx.fillStyle = '#b6f7ff';
   ctx.shadowBlur = 16;
   ctx.shadowColor = '#b6f7ff';
-  shots.forEach(s => {
-    ctx.fillRect(s.x-2, s.y-8, 4, 12);
-  });
+  shots.forEach(s => ctx.fillRect(s.x-2, s.y-8, 4, 12));
   ctx.restore();
 }
 
@@ -206,26 +182,17 @@ function drawHUD(){
 }
 
 // ---------- Loop ----------
-let last = 0;
-function loop(ts){
+function loop(){
   if (!running || paused) return;
-  const dt = ts - last; last = ts;
-
-  update(dt);
+  update();
   ctx.clearRect(0,0,W,H);
-  drawGrid();
-  drawShip();
-  drawShots();
-  drawHUD();
-
+  drawGrid(); drawShip(); drawShots(); drawHUD();
   requestAnimationFrame(loop);
 }
 
 function startGame(){
   running = true; paused = false; score = 0;
-  shots.length = 0;
-  ship.x = W/2; ship.vx = 0;
-  last = performance.now();
+  shots.length = 0; ship.x = W/2; ship.y = H*0.8; ship.vx = 0; ship.vy = 0;
   requestAnimationFrame(loop);
 }
 </script>
