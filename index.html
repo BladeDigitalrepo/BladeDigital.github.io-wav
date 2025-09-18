@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>WAV_V1.5 — Watcher AI Vertical</title>
+<title>WAV_V1.6 — Watcher AI Vertical</title>
 <style>
   html,body { margin:0; background:#05070c; overflow:hidden; font-family:monospace; }
   canvas { display:block; margin:auto; background:#05070c; touch-action:none; }
@@ -10,6 +10,8 @@
   #start .card { text-align:center; color:#bffcff }
   #start h1 { margin:0 0 8px; color:#ff59d1; text-shadow:0 0 16px #ff59d1, 0 0 8px #25f3ff; }
   #start button { margin-top:16px; border:2px solid #25f3ff; color:#25f3ff; background:transparent; padding:8px 16px; font-family:inherit; border-radius:10px; }
+  #controls { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .btn { border:2px solid #25f3ff; color:#25f3ff; background:transparent; border-radius:8px; padding:10px 16px; font-size:16px; box-shadow:0 0 8px #25f3ff80; }
 </style>
 </head>
 <body>
@@ -18,16 +20,28 @@
   <!-- Start overlay -->
   <div id="start">
     <div class="card">
-      <h1>WAV_V1.5</h1>
+      <h1>WAV_V1.6</h1>
       <div>Watcher_Ai_Vertical — Blade Digital</div>
       <pre style="color:#25f3ff">
         .-^-.   Neon Space Cruiser
        /_=_=\   (you)
        \-_-_/   ⟰ free flight mode
       </pre>
-      <div>Controls: ← → ↑ ↓ move • Space/Enter fire • P pause</div>
+      <div>Controls: ← → ↑ ↓ move • Space/Enter fire • P pause • Buttons for mobile</div>
       <button id="startBtn">▶ Start</button>
     </div>
+  </div>
+
+  <!-- On-screen controls -->
+  <div id="controls">
+    <button class="btn" id="up">⬆︎</button>
+    <div>
+      <button class="btn" id="left">⬅︎</button>
+      <button class="btn" id="fire">⚡ Fire</button>
+      <button class="btn" id="right">➡︎</button>
+    </div>
+    <button class="btn" id="down">⬇︎</button>
+    <button class="btn" id="pause">⏸</button>
   </div>
 
 <script>
@@ -77,42 +91,46 @@ function togglePause(){
   if (!paused) requestAnimationFrame(loop);
 }
 
+// On-screen buttons
+document.getElementById('left').ontouchstart = () => keys['arrowleft'] = true;
+document.getElementById('left').ontouchend   = () => keys['arrowleft'] = false;
+document.getElementById('right').ontouchstart= () => keys['arrowright'] = true;
+document.getElementById('right').ontouchend  = () => keys['arrowright'] = false;
+document.getElementById('up').ontouchstart   = () => keys['arrowup'] = true;
+document.getElementById('up').ontouchend     = () => keys['arrowup'] = false;
+document.getElementById('down').ontouchstart = () => keys['arrowdown'] = true;
+document.getElementById('down').ontouchend   = () => keys['arrowdown'] = false;
+document.getElementById('fire').ontouchstart = fire;
+document.getElementById('pause').ontouchstart= togglePause;
+
 // ---------- Update ----------
 function update(){
   ship.ax = 0; ship.ay = 0;
 
-  // Horizontal control
   if (keys['arrowleft'])  ship.ax -= ship.accel;
   if (keys['arrowright']) ship.ax += ship.accel;
-
-  // Vertical control
   if (keys['arrowup'])    ship.ay -= ship.accel;
   if (keys['arrowdown'])  ship.ay += ship.accel;
 
-  // Horizontal physics
-  ship.vx += ship.ax;
-  ship.vx *= ship.friction;
+  ship.vx += ship.ax; ship.vx *= ship.friction;
   ship.vx = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vx));
   ship.x  += ship.vx;
 
-  // Vertical physics
-  ship.vy += ship.ay;
-  ship.vy *= ship.friction;
+  ship.vy += ship.ay; ship.vy *= ship.friction;
   ship.vy = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vy));
   ship.y  += ship.vy;
 
-  // Clamp to edges (ship stays fully visible)
+  // Clamp so ship stays visible
   ship.x = Math.max(ship.w/2, Math.min(W - ship.w/2, ship.x));
   ship.y = Math.max(ship.h/2, Math.min(H - ship.h/2, ship.y));
 
-  // Shots
+  // Bullets
   for (let i = shots.length-1; i >= 0; i--) {
-    const s = shots[i];
-    s.y += s.vy;
-    if (s.y < -20) shots.splice(i,1);
+    shots[i].y += shots[i].vy;
+    if (shots[i].y < -20) shots.splice(i,1);
   }
 
-  // Background scroll
+  // Grid scroll
   grid.y += grid.speed;
   if (grid.y >= 40) grid.y = 0;
 
