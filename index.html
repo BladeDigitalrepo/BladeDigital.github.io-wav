@@ -1,3 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WAV_V1.6 — Watcher AI Vertical</title>
+<style>
+  html,body { margin:0; background:#05070c; overflow:hidden; font-family:monospace; }
+  canvas { display:block; margin:auto; background:#05070c; touch-action:none; }
+  #start { position:fixed; inset:0; display:grid; place-items:center; background:#000a; }
+  #start .card { text-align:center; color:#bffcff }
+  #start h1 { margin:0 0 8px; color:#ff59d1; text-shadow:0 0 16px #ff59d1, 0 0 8px #25f3ff; }
+  #start button { margin-top:16px; border:2px solid #25f3ff; color:#25f3ff; background:transparent; padding:8px 16px; font-family:inherit; border-radius:10px; }
+  #controls { position:fixed; bottom:500px; left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .btn { border:2px solid #25f3ff; color:#25f3ff; background:transparent; border-radius:8px; padding:10px 16px; font-size:16px; box-shadow:0 0 8px #25f3ff80; }
+</style>
+</head>
+<body>
+  <canvas id="c" width="800" height="600"></canvas>
+
+  <!-- Start overlay -->
+  <div id="start">
+    <div class="card">
+      <h1>WAV_V1.6</h1>
+      <div>Watcher_Ai_Vertical — Blade Digital</div>
+      <pre style="color:#25f3ff">
+        .-^-.   Neon Space Cruiser
+       /_=_=\   (you)
+       \-_-_/   ⟰ free flight mode
+      </pre>
+      <div>Controls: ← → ↑ ↓ move • Space/Enter fire • P pause • Buttons for mobile</div>
+      <button id="startBtn">▶ Start</button>
+    </div>
+  </div>
+
+  <!-- On-screen controls -->
+  <div id="controls">
+    <button class="btn" id="up">⬆︎</button>
+    <div>
+      <button class="btn" id="left">⬅︎</button>
+      <button class="btn" id="fire">⚡ Fire</button>
+      <button class="btn" id="right">➡︎</button>
+    </div>
+    <button class="btn" id="down">⬇︎</button>
+    <button class="btn" id="pause">⏸</button>
+  </div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ---------- Game State ----------
+let running = false, paused = false, score = 0;
+const W = canvas.width, H = canvas.height;
+
+// Background grid
+const grid = { y: 0, speed: 2 };
+
+// Player ship
+const ship = {
+  x: W/2, y: H*0.8, w: 26, h: 28,
+  vx: 0, vy: 0, ax: 0, ay: 0,
+  maxV: 6, accel: 0.9, friction: 0.88,
+};
+
+// Bullets
+const shots = [];
+function fire() {
+  const now = performance.now();
+  if (fire.last && now - fire.last < 140) return;
+  fire.last = now;
+  shots.push({ x: ship.x, y: ship.y - ship.h/2, vy: -10 });
+}
+
+// ---------- Input ----------
+const keys = {};
+window.addEventListener('keydown', (e) => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ' || e.key === 'Enter') fire();
+  if (e.key.toLowerCase() === 'p') togglePause();
+});
+window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+document.getElementById('startBtn').onclick = () => { 
+  document.getElementById('start').style.display='none'; 
+  startGame(); 
+};
+
+function togglePause(){
+  if (!running) return;
+  paused = !paused;
+  if (!paused) requestAnimationFrame(loop);
+}
+
+// On-screen buttons
+document.getElementById('left').ontouchstart = () => keys['arrowleft'] = true;
+document.getElementById('left').ontouchend   = () => keys['arrowleft'] = false;
+document.getElementById('right').ontouchstart= () => keys['arrowright'] = true;
+document.getElementById('right').ontouchend  = () => keys['arrowright'] = false;
+document.getElementById('up').ontouchstart   = () => keys['arrowup'] = true;
+document.getElementById('up').ontouchend     = () => keys['arrowup'] = false;
+document.getElementById('down').ontouchstart = () => keys['arrowdown'] = true;
+document.getElementById('down').ontouchend   = () => keys['arrowdown'] = false;
+document.getElementById('fire').ontouchstart = fire;
+document.getElementById('pause').ontouchstart= togglePause;
+
+// ---------- Update ----------
+function update(){
+  ship.ax = 0; ship.ay = 0;
+
+  if (keys['arrowleft'])  ship.ax -= ship.accel;
+  if (keys['arrowright']) ship.ax += ship.accel;
+  if (keys['arrowup'])    ship.ay -= ship.accel;
+  if (keys['arrowdown'])  ship.ay += ship.accel;
+
+  ship.vx += ship.ax; ship.vx *= ship.friction;
+  ship.vx = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vx));
+  ship.x  += ship.vx;
+
+  ship.vy += ship.ay; ship.vy *= ship.friction;
+  ship.vy = Math.max(-ship.maxV, Math.min(ship.maxV, ship.vy));
+  ship.y  += ship.vy;
+
+  // Clamp so ship stays visible
+  ship.x = Math.max(ship.w/2, Math.min(W - ship.w/2, ship.x));
+  ship.y = Math.max(ship.h/2, Math.min(H - ship.h/2, ship.y));
+
+  // Bullets
+  for (let i = shots.length-1; i >= 0; i--) {
+    shots[i].y += shots[i].vy;
+    if (shots[i].y < -20) shots.splice(i,1);
+  }
+
+  // Grid scroll
+  grid.y += grid.speed;
+  if (grid.y >= 40) grid.y = 0;
+
+  score += 0.1;
+}
+
+// ---------- Draw ----------
+function glowRect(x,y,w,h,fill,shadow){
+  ctx.save();
+  ctx.shadowBlur = shadow;
+  ctx.shadowColor = fill;
+  ctx.fillStyle = fill;
+  ctx.fillRect(x,y,w,h);
+  ctx.restore();
+}
+
+function drawGrid(){
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = '#12243a';
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  ctx.strokeStyle = '#1be1ff'; ctx.shadowBlur = 12; ctx.shadowColor = '#1be1ff';
+  for (let y = grid.y; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.font = '120px monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowBlur = 36;
+  ctx.shadowColor = '#ff59d1';
+  ctx.fillStyle = '#ff59d1';
+  ctx.fillText('🔥', W/2, H*0.45);
+  ctx.restore();
+}
+
+function drawShip(){
+  glowRect(ship.x-6, ship.y-14, 12, 28, '#25f3ff', 18);
+  glowRect(ship.x-18, ship.y-4, 12, 6, '#ff59d1', 12);
+  glowRect(ship.x+6,  ship.y-4, 12, 6, '#ff59d1', 12);
+  glowRect(ship.x-3, ship.y-10, 6, 10, '#ffa133', 8);
+  ctx.save(); ctx.fillStyle = '#ffa133'; ctx.shadowBlur=14; ctx.shadowColor='#ffa133';
+  ctx.fillRect(ship.x-2, ship.y+16, 4, 8); ctx.globalAlpha = 0.7;
+  ctx.fillRect(ship.x-1, ship.y+24, 2, 6); ctx.restore();
+}
+
+function drawShots(){
+  ctx.save();
+  ctx.fillStyle = '#b6f7ff';
+  ctx.shadowBlur = 16;
+  ctx.shadowColor = '#b6f7ff';
+  shots.forEach(s => ctx.fillRect(s.x-2, s.y-8, 4, 12));
+  ctx.restore();
+}
+
+function drawHUD(){
+  ctx.save();
+  ctx.fillStyle = '#cfefff';
+  ctx.font = '14px monospace';
+  ctx.fillText('Score: ' + Math.floor(score), 12, 20);
+  ctx.restore();
+}
+
+// ---------- Loop ----------
+function loop(){
+  if (!running || paused) return;
+  update();
+  ctx.clearRect(0,0,W,H);
+  drawGrid(); drawShip(); drawShots(); drawHUD();
+  requestAnimationFrame(loop);
+}
+
+function startGame(){
+  running = true; paused = false; score = 0;
+  shots.length = 0; ship.x = W/2; ship.y = H*0.8; ship.vx = 0; ship.vy = 0;
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
+
 <script>
 // ===== EXISTING CODE ABOVE (ship, shots, enemies, explosions) =====
 
