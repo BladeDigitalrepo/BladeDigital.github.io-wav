@@ -2,19 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>WAV_V2.0 — Watcher AI Vertical</title>
+<title>WAV_V2.1 — Watcher AI Vertical</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
-  html,body { margin:0; background:#05070c; overflow:hidden; font-family:monospace; }
-  canvas { display:block; margin:auto; background:#05070c; touch-action:none; }
+  html,body { margin:0; padding:0; background:#05070c; overflow:hidden; font-family:monospace; }
+  canvas { display:block; width:100vw; height:100vh; background:#05070c; touch-action:none; }
 
-  /* Start + Game Over Overlay */
+  /* Overlays */
   .overlay {
     position:fixed; inset:0; background:#000a; display:grid; place-items:center;
-    color:#bffcff; text-align:center; font-family:monospace;
+    color:#bffcff; text-align:center;
   }
   .overlay h1 {
-    margin:0 0 16px;
-    color:#ff59d1;
+    margin:0 0 16px; color:#ff59d1;
     text-shadow:0 0 20px #ff59d1, 0 0 10px #25f3ff;
   }
   .overlay button {
@@ -24,32 +24,45 @@
     box-shadow:0 0 12px #25f3ff80;
   }
 
-  /* Mobile Controls */
-  #controls {
-    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-    display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;
+  /* Controls */
+  #leftControls {
+    position:fixed; bottom:20px; left:20px;
+    display:grid; grid-template-columns:70px 70px 70px;
+    grid-template-rows:70px 70px; gap:12px;
   }
-  .row { display:flex; gap:16px; }
-  .btn {
+  #leftControls .btn { grid-column:2; grid-row:1; }
+  #leftControls .btn.left { grid-column:1; grid-row:2; }
+  #leftControls .btn.down { grid-column:2; grid-row:2; }
+  #leftControls .btn.right { grid-column:3; grid-row:2; }
+
+  #fireBtn {
+    position:fixed; bottom:40px; right:40px;
     border:3px solid #25f3ff; color:#25f3ff; background:#000c;
-    border-radius:12px; padding:22px 26px; font-size:28px;
-    box-shadow:0 0 10px #25f3ff80; min-width:90px; min-height:90px;
+    border-radius:50%; width:90px; height:90px; font-size:26px;
+    box-shadow:0 0 12px #25f3ff80;
+  }
+
+  #pauseBtn {
+    position:fixed; top:20px; right:20px;
+    border:3px solid #25f3ff; color:#25f3ff; background:#000c;
+    border-radius:8px; padding:10px 16px; font-size:18px;
+    box-shadow:0 0 8px #25f3ff80;
   }
 </style>
 </head>
 <body>
-  <canvas id="c" width="960" height="540"></canvas>
+  <canvas id="c"></canvas>
 
   <!-- Start Screen -->
   <div id="start" class="overlay">
     <div>
-      <h1>WAV_V2.0</h1>
+      <h1>WAV_V2.1</h1>
       <div>Watcher AI Vertical — Blade Digital</div>
       <button onclick="startGame()">▶ Start</button>
     </div>
   </div>
 
-  <!-- Game Over Screen -->
+  <!-- Game Over -->
   <div id="gameover" class="overlay" style="display:none">
     <div>
       <h1>💀 GAME OVER 💀</h1>
@@ -59,29 +72,30 @@
   </div>
 
   <!-- Mobile Controls -->
-  <div id="controls">
-    <div class="row">
-      <button class="btn" id="left">⬅︎</button>
-      <button class="btn" id="up">⬆︎</button>
-      <button class="btn" id="right">➡︎</button>
-    </div>
-    <div class="row">
-      <button class="btn" id="down">⬇︎</button>
-      <button class="btn" id="fire">⚡</button>
-      <button class="btn" id="pause">⏸</button>
-    </div>
+  <div id="leftControls">
+    <button class="btn" id="up">⬆︎</button>
+    <button class="btn left" id="left">⬅︎</button>
+    <button class="btn down" id="down">⬇︎</button>
+    <button class="btn right" id="right">➡︎</button>
   </div>
+  <button id="fireBtn">⚡</button>
+  <button id="pauseBtn">⏸</button>
 
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+
 let running=false,paused=false,score=0,lives=3;
-const W=canvas.width,H=canvas.height;const grid={y:0,speed:2};
+let W=canvas.width,H=canvas.height;
+const grid={y:0,speed:2};
 
 // Ship
 const ship={x:W/2,y:H*0.8,w:26,h:28,vx:0,vy:0,ax:0,ay:0,maxV:6,accel:0.9,friction:0.88};
 
-// Bullets, Enemies, Explosions
-const shots=[],enemies=[],explosions=[];function fire(){const now=performance.now();if(fire.last&&now-fire.last<140)return;fire.last=now;shots.push({x:ship.x,y:ship.y-ship.h/2,vy:-10});}
+// Arrays
+const shots=[],enemies=[],explosions=[];
+function fire(){const now=performance.now();if(fire.last&&now-fire.last<140)return;fire.last=now;shots.push({x:ship.x,y:ship.y-ship.h/2,vy:-10});}
 function spawnEnemy(){const size=20+Math.random()*20;enemies.push({x:Math.random()*(W-40)+20,y:-size,w:size,h:size,vy:2+Math.random()*2});}
 function spawnExplosion(x,y){explosions.push({x,y,r:2,max:30});}
 
@@ -94,7 +108,6 @@ function updateBoss(){if(!boss||!boss.alive)return;boss.x+=boss.vx;if(boss.x<bos
 const keys={};
 window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key===' '||e.key==='Enter')fire();if(e.key.toLowerCase()==='p')togglePause();if(!running&&e.key.toLowerCase()==='r')restartGame();});
 window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-function togglePause(){if(!running)return;paused=!paused;if(!paused)requestAnimationFrame(loop);}
 
 // Mobile
 document.getElementById('left').ontouchstart=()=>keys['arrowleft']=true;
@@ -105,8 +118,10 @@ document.getElementById('up').ontouchstart=()=>keys['arrowup']=true;
 document.getElementById('up').ontouchend=()=>keys['arrowup']=false;
 document.getElementById('down').ontouchstart=()=>keys['arrowdown']=true;
 document.getElementById('down').ontouchend=()=>keys['arrowdown']=false;
-document.getElementById('fire').ontouchstart=fire;
-document.getElementById('pause').ontouchstart=togglePause;
+document.getElementById('fireBtn').ontouchstart=fire;
+document.getElementById('pauseBtn').ontouchstart=togglePause;
+
+function togglePause(){if(!running)return;paused=!paused;if(!paused)requestAnimationFrame(loop);}
 
 // Update
 function update(){
@@ -135,7 +150,7 @@ function drawHUD(){ctx.save();ctx.fillStyle='#cfefff';ctx.font='16px monospace';
 
 // Loop
 function loop(){if(!running||paused)return;update();ctx.clearRect(0,0,W,H);drawGrid();drawShip();drawShots();drawEnemies();drawExplosions();drawHUD();drawBoss();requestAnimationFrame(loop);}
-function startGame(){document.getElementById('start').style.display='none';document.getElementById('gameover').style.display='none';running=true;paused=false;score=0;lives=3;shots.length=0;enemies.length=0;explosions.length=0;boss=null;bossShots.length=0;ship.x=W/2;ship.y=H*0.8;ship.vx=0;ship.vy=0;requestAnimationFrame(loop);}
+function startGame(){document.getElementById('start').style.display='none';document.getElementById('gameover').style.display='none';running=true;paused=false;score=0;lives=3;shots.length=0;enemies.length=0;explosions.length=0;boss=null;bossShots.length=0;W=canvas.width;H=canvas.height;ship.x=W/2;ship.y=H*0.8;ship.vx=0;ship.vy=0;requestAnimationFrame(loop);}
 function gameOver(){running=false;document.getElementById('finalScore').innerText="Final Score: "+Math.floor(score);document.getElementById('gameover').style.display='grid';}
 function restartGame(){startGame();}
 </script>
